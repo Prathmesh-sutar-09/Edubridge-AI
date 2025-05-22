@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Chatbot</title>
+</head>
+<body>
+    <h1>PDF Chatbot</h1>
+    
+    <!-- File Upload Form -->
+    <form id="uploadForm">
+        <input type="file" name="file" id="fileInput" accept=".pdf" required>
+        <button type="submit">Upload PDF</button>
+    </form>
+
+    <!-- Chat Interface -->
+    <div id="chatInterface" style="display: none;">
+        <h2>Chat with the PDF</h2>
+        <input type="text" id="questionInput" placeholder="Ask a question...">
+        <button onclick="sendQuestion()">Send</button>
+        <div id="response"></div>
+    </div>
+
+    <script>
+        // Handle file upload
+        document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById("fileInput");
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            const response = await fetch("http://localhost:8080/upload", {
+                method: "POST",
+                body: formData,
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                alert(result.message);
+                document.getElementById("chatInterface").style.display = "block";
+            } else {
+                alert(result.error);
+            }
+        });
+
+        // Send question to the chatbot
+        async function sendQuestion() {
+            const question = document.getElementById("questionInput").value;
+            if (!question) {
+                alert("Please enter a question.");
+                return;
+            }
+
+            const useUserPDF = confirm("Do you want to use the uploaded PDF?");
+            const response = await fetch("http://localhost:8080/chat", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ question, use_user_pdf: useUserPDF }),
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                document.getElementById("response").innerHTML = result.response;
+            } else {
+                alert(result.error);
+            }
+        }
+    </script>
+</body>
+</html>
