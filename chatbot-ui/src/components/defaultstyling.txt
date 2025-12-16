@@ -1,0 +1,574 @@
+import React, { useState } from "react";
+import {
+  Container,
+  TextField,
+  IconButton,
+  Box,
+  Typography,
+  Paper,
+  Drawer,
+  Button,
+  List,
+  ListItem,
+  ListItemText,
+  createTheme,
+  ThemeProvider,
+  CssBaseline,
+  CircularProgress,
+} from "@mui/material";
+import SendIcon from "@mui/icons-material/Send";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
+import ThumbUpIcon from "@mui/icons-material/ThumbUp";
+import ThumbDownIcon from "@mui/icons-material/ThumbDown";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ReactMarkdown from "react-markdown"; // Import react-markdown
+import DOMPurify from "dompurify"; // Import DOMPurify for sanitizing HTML
+import remarkGfm from 'remark-gfm'; // For GitHub Flavored Markdown
+import rehypeRaw from 'rehype-raw'; 
+
+const Chatbot = () => {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [document, setDocument] = useState(null);
+  const [userHistory, setUserHistory] = useState([]);
+  const [darkMode, setDarkMode] = useState(true);
+  const [botAnswer, setBotAnswer] = useState("");
+  const [isBotProcessing, setIsBotProcessing] = useState(false);
+
+  const theme = createTheme({
+    palette: {
+      mode: darkMode ? "dark" : "light",
+      background: {
+        default: darkMode ? "#222224" : "#fff",
+        paper: darkMode ? "#111112" : "#fff",
+      },
+      text: {
+        primary: darkMode ? "#fafcff" : "#000",
+      },
+    },
+    components: {
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            borderRadius: "20px",
+            padding: "8px 16px",
+            textTransform: "none",
+            boxShadow: "none",
+            transition: "background-color 0.3s ease",
+            "&:hover": {
+              boxShadow: "none",
+            },
+          },
+          outlined: {
+            border: "2px solid",
+          },
+          contained: {
+            color: "white",
+          },
+        },
+      },
+    },
+  });
+
+  const handleSendMessage = async () => {
+    if (input.trim() === "") return;
+
+    const userMessage = {
+      text: input,
+      sender: "user",
+      timestamp: new Date().toLocaleTimeString(),
+    };
+    setMessages([...messages, userMessage]);
+    setUserHistory([...userHistory, input]);
+    setInput("");
+
+    setIsBotProcessing(true);
+
+    try {
+      const response = await fetch("http://localhost:8080/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: input, use_user_file: !!document }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch response from the server");
+      }
+
+      const data = await response.json();
+      const botMessage = {
+        text: data.response,
+        sender: "bot",
+        timestamp: new Date().toLocaleTimeString(),
+      };
+      setMessages((prevMessages) => [...prevMessages, botMessage]);
+      setBotAnswer(data.response);
+    } catch (error) {
+      console.error("Error:", error);
+      const botMessage = {
+        text: "Sorry, something went wrong. Please try again.",
+        sender: "bot",
+        timestamp: new Date().toLocaleTimeString(),
+      };
+      setMessages((prevMessages) => [...prevMessages, botMessage]);
+      setBotAnswer("Sorry, something went wrong. Please try again.");
+    } finally {
+      setIsBotProcessing(false);
+    }
+  };
+
+  const handleClearChat = () => {
+    setMessages([]);
+    setUserHistory([]);
+    setBotAnswer("");
+  };
+
+  const handleDocumentUpload = async (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await fetch("http://localhost:8080/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to upload file");
+        }
+
+        setDocument(file);
+        alert(`Document "${file.name}" uploaded and processed successfully!`);
+      } catch (error) {
+        console.error("Error:", error);
+        alert("Failed to upload file. Please try again.");
+      }
+    }
+  };
+
+  const handleCopyMessage = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert("Message copied to clipboard!");
+    });
+  };
+
+  const renderMessageContent = (text) => {
+    // Example usage of botAnswer
+    const botAnswer = "This is a bot response."; // Keep the constant
+    console.log(botAnswer); // Use the variable to avoid ESLint warning
+  
+    // Check if the text contains HTML tags
+    const containsHTML = /<[^>]+>/g.test(text);
+  
+    if (containsHTML) {
+      // Sanitize the HTML content before rendering
+      const sanitizedHTML = DOMPurify.sanitize(text);
+      return <div dangerouslySetInnerHTML={{ __html: sanitizedHTML }} />;
+    } else {
+      // Render as Markdown with support for raw HTML
+      return (
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]} // Add GitHub Flavored Markdown support
+          rehypePlugins={[rehypeRaw]} // Allow raw HTML in Markdown
+        >
+          {text}
+        </ReactMarkdown>
+      );
+    }
+  };
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Container
+        maxWidth="lg"
+        sx={{
+          display: "flex",
+          flexDirection: "row",
+          height: "100vh",
+          overflow: "hidden",
+          backgroundColor: theme.palette.background.default,
+        }}
+      >
+        <Drawer
+          variant="permanent"
+          open
+          sx={{
+            width: 300,
+            flexShrink: 0,
+            "& .MuiDrawer-paper": {
+              width: 300,
+              boxSizing: "border-box",
+              backgroundColor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              p: 2,
+              display: "flex",
+              flexDirection: "column",
+              borderRight: `1px solid ${darkMode ? "#333" : "#ddd"}`,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+            },
+          }}
+        >
+          <Typography
+            variant="h5"
+            sx={{
+              mb: 5,
+              fontWeight: "bold",
+              textAlign: "center",
+              color: theme.palette.text.primary,
+              position: "relative",
+              fontFamily: "'Pacifico', cursive",
+              "&::after": {
+                content: '""',
+                position: "absolute",
+                left: "50%",
+                bottom: "-5px",
+                width: "100%",
+                height: "3px",
+                backgroundColor: theme.palette.primary.main,
+                transform: "translateX(-50%)",
+              },
+            }}
+          >
+            Edubridge AI
+          </Typography>
+
+          <Button
+            variant="outlined"
+            onClick={handleClearChat}
+            sx={{
+              mb: 2,
+              width: "100%",
+              color: theme.palette.text.primary,
+              border: "none",
+              backgroundColor:
+                theme.palette.background.paper === "#1E293B" ? "#334155" : "#969899",
+              "&:hover": {
+                backgroundColor:
+                  theme.palette.background.paper === "#1E293B" ? "#475569" : "#6495ED",
+                color: "white",
+              },
+            }}
+          >
+            Clear Chat
+          </Button>
+
+          <Button
+            variant="outlined"
+            component="label"
+            startIcon={<UploadFileIcon />}
+            sx={{
+              mb: 2,
+              width: "100%",
+              color: theme.palette.text.primary,
+              border: "none",
+              backgroundColor:
+                theme.palette.background.paper === "#1E293B" ? "#334155" : "#969899",
+              "&:hover": {
+                backgroundColor:
+                  theme.palette.background.paper === "#1E293B" ? "#475569" : "#6495ED",
+                color: "white",
+              },
+            }}
+          >
+            Upload Document
+            <input type="file" hidden onChange={handleDocumentUpload} />
+          </Button>
+
+          <Typography variant="h6" sx={{ mb: 2, color: theme.palette.text.primary }}>
+            Chat History :
+          </Typography>
+          <List sx={{ maxHeight: 200, overflowY: "auto" }}>
+            {userHistory.map((msg, index) => (
+              <ListItem
+                key={index}
+                sx={{
+                  backgroundColor: theme.palette.background.paper,
+                  borderRadius: "15px",
+                  marginBottom: "8px",
+                  padding: "8px",
+                  "&:hover": {
+                    backgroundColor:
+                      theme.palette.background.paper === "#1E293B" ? "#2d3136" : "#757d80",
+                    color: theme.palette.text.primary,
+                    cursor: "pointer",
+                  },
+                }}
+              >
+                <ListItemText
+                  primary={`User: ${msg}`}
+                  sx={{ color: theme.palette.text.primary }}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Drawer>
+
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "flex-end",
+            flexGrow: 1,
+            overflowY: "hidden",
+          }}
+        >
+          <Paper
+            elevation={0}
+            sx={{
+              flexGrow: 1,
+              overflowY: "auto",
+              p: 2,
+              mb: 2,
+              height: "80%",
+              backgroundColor: "transparent",
+              boxShadow: "none",
+              border: "none",
+              "&::-webkit-scrollbar": {
+                width: "8px",
+              },
+              "&::-webkit-scrollbar-track": {
+                backgroundColor: darkMode ? "#333" : "#f1f1f1",
+                borderRadius: "4px",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                backgroundColor: darkMode ? "#666" : "#888",
+                borderRadius: "4px",
+                "&:hover": {
+                  backgroundColor: darkMode ? "#888" : "#666",
+                },
+              },
+            }}
+          >
+            {messages.length === 0 ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  height: "100%",
+                  color: theme.palette.text.secondary,
+                }}
+              >
+                <Typography variant="h4">How can I assist you?</Typography>
+              </Box>
+            ) : (
+              messages.map((msg, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    textAlign: msg.sender === "user" ? "right" : "left",
+                    mb: 2,
+                    display: "flex",
+                    justifyContent: msg.sender === "user" ? "flex-end" : "flex-start",
+                    animation: "fadeIn 0.5s ease",
+                    "@keyframes fadeIn": {
+                      from: { opacity: 0, transform: "translateY(10px)" },
+                      to: { opacity: 1, transform: "translateY(0)" },
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: msg.sender === "user" ? "flex-end" : "flex-start",
+                      maxWidth: "75%",
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: theme.palette.text.secondary,
+                        mb: 0.5,
+                      }}
+                    >
+                      {msg.sender === "user" ? "You" : "Bot"} • {msg.timestamp}
+                    </Typography>
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        borderRadius: "15px",
+                        bgcolor:
+                          msg.sender === "user"
+                            ? "primary.main"
+                            : darkMode
+                            ? "grey.800"
+                            : "grey.200",
+                        color: msg.sender === "user" ? "black" : theme.palette.text.primary,
+                        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.12)",
+                        transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                        "&:hover": {
+                          transform: "scale(1.02)",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                        },
+                      }}
+                    >
+                      {msg.sender === "bot" ? (
+                        renderMessageContent(msg.text) // Render Markdown or HTML content
+                      ) : (
+                        <Typography variant="body1" sx={{ wordBreak: "break-word" }}>
+                          {msg.text}
+                        </Typography>
+                      )}
+                      {msg.sender === "bot" && (
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            gap: 1,
+                            mt: 1,
+                          }}
+                        >
+                          <IconButton size="small" onClick={() => alert("Liked!")}>
+                            <ThumbUpIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => alert("Disliked!")}>
+                            <ThumbDownIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => handleCopyMessage(msg.text)}>
+                            <ContentCopyIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                </Box>
+              ))
+            )}
+
+            {isBotProcessing && (
+              <Box
+                sx={{
+                  textAlign: "left",
+                  mb: 2,
+                  display: "flex",
+                  justifyContent: "flex-start",
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    maxWidth: "75%",
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: theme.palette.text.secondary,
+                      mb: 0.5,
+                    }}
+                  >
+                    Bot • Typing...
+                  </Typography>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      borderRadius: "15px",
+                      bgcolor: darkMode ? "grey.800" : "grey.200",
+                      color: theme.palette.text.primary,
+                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.12)",
+                    }}
+                  >
+                    <CircularProgress size={20} />
+                  </Box>
+                </Box>
+              </Box>
+            )}
+          </Paper>
+
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              paddingBottom: 2,
+              marginTop: "auto",
+              width: "100%",
+            }}
+          >
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Type a message..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+              sx={{
+                width: "80%",
+                maxWidth: 600,
+                borderRadius: "30px",
+                background: `linear-gradient(145deg, ${darkMode ? "#2a2a2e" : "#f0f0f0"}, ${theme.palette.background.paper})`,
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: "30px",
+                  color: theme.palette.text.primary,
+                  transition: "all 0.3s ease",
+                  "&:hover .MuiOutlinedInput-notchedOutline": {
+                    borderColor: darkMode ? "#555" : "#004085",
+                  },
+                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                    borderColor: darkMode ? "#777" : "#004085",
+                    boxShadow: darkMode
+                      ? "0 0 0 2px rgba(255, 255, 255, 0.1)"
+                      : "0 0 0 2px rgba(0, 64, 133, 0.2)",
+                  },
+                },
+                "& .MuiOutlinedInput-input": {
+                  padding: "12px 16px",
+                  color: theme.palette.text.primary,
+                  "&::placeholder": {
+                    color: darkMode ? "#aaa" : "#666",
+                    opacity: 1,
+                  },
+                },
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: darkMode ? "#444" : "#ddd",
+                  transition: "border-color 0.3s ease, box-shadow 0.3s ease",
+                },
+              }}
+            />
+            <IconButton
+              color="primary"
+              onClick={handleSendMessage}
+              sx={{
+                marginLeft: 2,
+                backgroundColor: "#004085",
+                borderRadius: "50%",
+                "&:hover": {
+                  backgroundColor: "#003b64",
+                },
+              }}
+            >
+              <SendIcon />
+            </IconButton>
+          </Box>
+        </Box>
+
+        <IconButton
+          sx={{
+            position: "fixed",
+            top: 20,
+            right: 20,
+            color: theme.palette.text.primary,
+            backgroundColor: darkMode ? "#334155" : "#ADD8E6",
+            ":hover": {
+              backgroundColor: darkMode ? "#475569" : "#6495ED",
+              color: "white",
+            },
+          }}
+          onClick={() => setDarkMode(!darkMode)}
+        >
+          {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+        </IconButton>
+      </Container>
+    </ThemeProvider>
+  );
+};
+
+export default Chatbot;
