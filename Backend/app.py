@@ -19,16 +19,18 @@ app = Flask(__name__)
 CORS(app, origins=["http://localhost:3000"])  # Allow requests from your React frontend
 
 # Configuration for file uploads
-UPLOAD_FOLDER = "user_uploads"
+UPLOAD_FOLDER = os.path.join("data", "uploads")
 ALLOWED_EXTENSIONS = {"pdf", "pptx", "docx"}  # Added support for PPT and DOCX
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-USER_INDEX_PATH = "user_faiss_index"
-SYSTEM_INDEX_PATH = "system_faiss_index"
-SYSTEM_DATA_PATH = "system_data"  # Folder containing system documents
+USER_INDEX_PATH = os.path.join("indices", "user")
+SYSTEM_INDEX_PATH = os.path.join("indices", "system")
+SYSTEM_DATA_PATH = os.path.join("data", "system")  # Folder containing system documents
 
-# Ensure the upload folder exists
+# Ensure the required directories exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(SYSTEM_DATA_PATH, exist_ok=True)  # Ensure system data folder exists
+os.makedirs(SYSTEM_DATA_PATH, exist_ok=True)
+os.makedirs(USER_INDEX_PATH, exist_ok=True)
+os.makedirs(SYSTEM_INDEX_PATH, exist_ok=True)
 
 # Helper functions to load PPT and DOCX files
 def load_pptx(file_path):
